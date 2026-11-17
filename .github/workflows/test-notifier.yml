@@ -1,0 +1,23 @@
+name: Test Startup Notifier
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install notifier service
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          printf "%s\n" "$WEBHOOK_URL" | sudo ./install.sh
+
+      - name: Trigger systemd service and verify logs
+        run: |
+          sudo systemctl start kali-notifier.service
+          sleep 3
+          journalctl -u kali-notifier.service --no-pager | grep "HTTP 204"
