@@ -12,12 +12,18 @@ if [[ -z "${NODE_BIN}" ]]; then
     exit 1
 fi
 
+NODE_MAJOR="$("${NODE_BIN}" -p "process.versions.node.split('.')[0]" 2>/dev/null || echo 0)"
+if [[ "${NODE_MAJOR}" -lt 18 ]]; then
+    echo "Node.js v18+ is required for native fetch() (found v${NODE_MAJOR}). Please upgrade Node.js."
+    exit 1
+fi
+
 TARGET_USER="${SUDO_USER:-$(whoami)}"
 INSTALL_DIR="/opt/kali-notifier"
 SERVICE_FILE="/etc/systemd/system/kali-notifier.service"
 NM_DISPATCHER_DIR="/etc/NetworkManager/dispatcher.d"
 
-echo "[*] Installing Kali Startup Notifier v2.0 to ${INSTALL_DIR} for user '${TARGET_USER}'..."
+echo "[*] Installing Kali Startup Notifier v2.1 (Node v${NODE_MAJOR}) to ${INSTALL_DIR} for user '${TARGET_USER}'..."
 mkdir -p "${INSTALL_DIR}"
 cp notification_script.js "${INSTALL_DIR}/notification_script.js"
 chown -R "${TARGET_USER}:${TARGET_USER}" "${INSTALL_DIR}"
@@ -71,4 +77,4 @@ fi
 systemctl daemon-reload
 systemctl enable kali-notifier.service
 
-echo "[+] Installed and enabled v2.0! Test it now with: sudo systemctl start kali-notifier.service"
+echo "[+] Installed and enabled v2.1! Test it now with: sudo systemctl start kali-notifier.service"

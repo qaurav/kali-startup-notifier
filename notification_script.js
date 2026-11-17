@@ -1,9 +1,8 @@
 #!/usr/bin/env node
-const os = require('os');
-const fs = require('fs');
-const path = require('path');
-const https = require('https');
-const { execSync } = require('child_process');
+const os = require('node:os');
+const fs = require('node:fs');
+const path = require('node:path');
+const { execSync } = require('node:child_process');
 
 const BASE_DIR = __dirname;
 const ENV_PATH = path.join(BASE_DIR, '.env');
@@ -51,8 +50,7 @@ function getBatteryStatus() {
   try {
     const psDir = '/sys/class/power_supply';
     if (!fs.existsSync(psDir)) return 'N/A';
-    const entries = fs.readdirSync(psDir);
-    const bat = entries.find((e) => e.startsWith('BAT'));
+    const bat = fs.readdirSync(psDir).find((e) => e.startsWith('BAT'));
     if (!bat) return 'AC / Desktop (No Battery)';
     const cap = fs.readFileSync(path.join(psDir, bat, 'capacity'), 'utf8').trim();
     const status = fs.readFileSync(path.join(psDir, bat, 'status'), 'utf8').trim();
@@ -98,35 +96,17 @@ function formatUptime(seconds) {
   return parts.join(' ');
 }
 
-function httpsRequest(urlString, options = {}, body = null) {
-  return new Promise((resolve, reject) => {
-    const url = new URL(urlString);
-    const reqOptions = {
-      hostname: url.hostname,
-      port: url.port || 443,
-      path: url.pathname + url.search,
-      method: options.method || 'GET',
-      headers: {
-        'User-Agent': 'kali-startup-notifier/2.0',
-        ...(options.headers || {}),
-      },
-      timeout: options.timeout || 4000,
-    };
-
-    const req = https.request(reqOptions, (res) => {
-      let data = '';
-      res.on('data', (chunk) => (data += chunk));
-      res.on('end', () => resolve({ statusCode: res.statusCode, body: data }));
-    });
-
-    req.on('timeout', () => {
-      req.destroy(new Error(`Timeout after ${reqOptions.timeout}ms`));
-    });
-    req.on('error', reject);
-
-    if (body) req.write(body);
-    req.end();
+async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      'User-Agent': 'kali-startup-notifier/2.1',
+      ...(options.headers || {}),
+    },
+    signal: AbortSignal.timeout(timeoutMs),
   });
+  const text = await res.text();
+  return { ok: res.ok, status: res.status, text };
 }
 
 async function fetchGeoLocation() {
@@ -177,9 +157,9 @@ async function fetchGeoLocation() {
 
   for (const p of providers) {
     try {
-      const res = await httpsRequest(p.url, { timeout: 4000 });
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        const parsed = p.parse(JSON.parse(res.body));
+      const res = await fetchWithTimeout(p.url, {}, 4000);
+      if (res.ok) {
+        const parsed = p.parse(JSON.parse(res.text));
         if (parsed) return { ...parsed, provider: p.name };
       }
     } catch {
@@ -217,7 +197,7 @@ function queueOfflineEvent(snapshot) {
     writeQueue(queue);
     console.log(`[Offline] Queued event (${snapshot.trigger}) at ${snapshot.timestamp}`);
   } else {
-    console.log(`[Offline] Event already queued for this boot session; waiting for network.`);
+    console.log('[Offline] Event already queued for this boot session; waiting for network.');
   }
 }
 
@@ -249,36 +229,31 @@ async function sendDiscord(webhookUrl, snapshot, geo, queuedEvents) {
     });
   }
 
-  const payload = JSON.stringify({
-    username: 'Kali System Notifier',
-    content: `🔴 **ALERT:** System (\`${snapshot.hostname}\`) online from **${locationStr}**!`,
-    embeds: [
-      {
-        title: isColdBoot ? '🚨 System Boot Alert' : '🔄 Network / Wake Alert',
-        color: isColdBoot ? 0xed4245 : 0x5865f2,
-        fields,
-        footer: { text: `kali-startup-notifier v2.0 • ${snapshot.timestamp}` },
-      },
-    ],
-  });
-
-  const res = await httpsRequest(
+  const res = await fetchWithTimeout(
     webhookUrl,
     {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload),
-      },
-      timeout: 6000,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'Kali System Notifier',
+        content: `🔴 **ALERT:** System (\`${snapshot.hostname}\`) online from **${locationStr}**!`,
+        embeds: [
+          {
+            title: isColdBoot ? '🚨 System Boot Alert' : '🔄 Network / Wake Alert',
+            color: isColdBoot ? 0xed4245 : 0x5865f2,
+            fields,
+            footer: { text: `kali-startup-notifier v2.1 • ${snapshot.timestamp}` },
+          },
+        ],
+      }),
     },
-    payload
+    6000
   );
 
-  if (res.statusCode < 200 || res.statusCode >= 300) {
-    throw new Error(`Discord webhook failed with HTTP ${res.statusCode}: ${res.body}`);
+  if (!res.ok) {
+    throw new Error(`Discord webhook failed with HTTP ${res.status}: ${res.text}`);
   }
-  return res.statusCode;
+  return res.status;
 }
 
 async function sendTelegram(botToken, chatId, snapshot, geo, queuedEvents) {
@@ -298,23 +273,14 @@ async function sendTelegram(botToken, chatId, snapshot, geo, queuedEvents) {
     text += queuedEvents.map((e) => `- ${e.trigger} @ ${e.timestamp}`).join('\n');
   }
 
-  const payload = JSON.stringify({
-    chat_id: chatId,
-    text,
-    parse_mode: 'Markdown',
-  });
-
-  await httpsRequest(
+  await fetchWithTimeout(
     `https://api.telegram.org/bot${botToken}/sendMessage`,
     {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload),
-      },
-      timeout: 5000,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' }),
     },
-    payload
+    5000
   );
 }
 
@@ -323,8 +289,7 @@ async function main() {
 
   const args = process.argv.slice(2);
   const force = args.includes('--force');
-  const triggerArg = args.find((a) => !a.startsWith('--'));
-  const trigger = triggerArg || 'Cold Boot';
+  const trigger = args.find((a) => !a.startsWith('--')) || 'Cold Boot';
 
   if (!force && fs.existsSync(LAST_SENT_PATH)) {
     const lastSent = Number(fs.readFileSync(LAST_SENT_PATH, 'utf8').trim() || '0');
