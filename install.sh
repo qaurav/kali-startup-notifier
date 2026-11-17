@@ -6,7 +6,8 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-if ! command -v node >/dev/null 2>&1; then
+NODE_BIN="$(command -v node || true)"
+if [[ -z "${NODE_BIN}" ]]; then
     echo "Node.js is not installed. Install it first: sudo apt update && sudo apt install -y nodejs"
     exit 1
 fi
@@ -22,6 +23,10 @@ chmod 755 "${INSTALL_DIR}/notification_script.js"
 
 if [[ ! -f "${INSTALL_DIR}/.env" ]]; then
     read -rp "Enter your Discord Webhook URL: " WEBHOOK_URL
+    if [[ -z "${WEBHOOK_URL}" ]]; then
+        echo "Error: Discord Webhook URL cannot be empty."
+        exit 1
+    fi
     echo "DISCORD_WEBHOOK_URL=\"${WEBHOOK_URL}\"" > "${INSTALL_DIR}/.env"
     chown "${TARGET_USER}:${TARGET_USER}" "${INSTALL_DIR}/.env"
     chmod 600 "${INSTALL_DIR}/.env"
@@ -29,7 +34,7 @@ else
     echo "[*] Existing ${INSTALL_DIR}/.env preserved."
 fi
 
-sed "s/__USER__/${TARGET_USER}/g" kali-notifier.service > "${SERVICE_FILE}"
+sed -e "s|__USER__|${TARGET_USER}|g" -e "s|__NODE__|${NODE_BIN}|g" kali-notifier.service > "${SERVICE_FILE}"
 
 systemctl daemon-reload
 systemctl enable kali-notifier.service

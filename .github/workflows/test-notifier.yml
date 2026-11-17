@@ -14,11 +14,19 @@ jobs:
         env:
           WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
+          if [[ -z "$WEBHOOK_URL" ]]; then
+            echo "ERROR: DISCORD_WEBHOOK_URL secret is not set in GitHub Repository Secrets!"
+            exit 1
+          fi
           printf "%s\n" "$WEBHOOK_URL" | sudo ./install.sh
 
       - name: Trigger systemd service and verify logs
         run: |
-          sudo systemctl start kali-notifier.service
+          STATUS=0
+          sudo systemctl start kali-notifier.service || STATUS=$?
           LOGS=$(journalctl -u kali-notifier.service --no-pager)
           echo "$LOGS"
+          if [[ $STATUS -ne 0 ]]; then
+            exit $STATUS
+          fi
           echo "$LOGS" | grep "HTTP 204"
