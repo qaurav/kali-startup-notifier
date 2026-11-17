@@ -4,7 +4,7 @@ Wants=network-online.target
 After=network.target network-online.target
 
 [Service]
-Type=simple
+Type=oneshot
 User=__USER__
 WorkingDirectory=/opt/kali-notifier
 EnvironmentFile=-/opt/kali-notifier/.env

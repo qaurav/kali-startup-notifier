@@ -11,7 +11,7 @@ if ! command -v node >/dev/null 2>&1; then
     exit 1
 fi
 
-TARGET_USER="${SUDO_USER:-kali}"
+TARGET_USER="${SUDO_USER:-$(whoami)}"
 INSTALL_DIR="/opt/kali-notifier"
 SERVICE_FILE="/etc/systemd/system/kali-notifier.service"
 

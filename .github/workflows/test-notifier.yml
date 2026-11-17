@@ -19,5 +19,6 @@ jobs:
       - name: Trigger systemd service and verify logs
         run: |
           sudo systemctl start kali-notifier.service
-          sleep 3
-          journalctl -u kali-notifier.service --no-pager | grep "HTTP 204"
+          LOGS=$(journalctl -u kali-notifier.service --no-pager)
+          echo "$LOGS"
+          echo "$LOGS" | grep "HTTP 204"
