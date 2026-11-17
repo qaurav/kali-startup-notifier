@@ -1,0 +1,18 @@
+[Unit]
+Description=Kali Linux Startup Discord Notifier
+Wants=network-online.target
+After=network.target network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=/opt/kali-notifier
+EnvironmentFile=-/opt/kali-notifier/.env
+ExecStart=/usr/bin/node /opt/kali-notifier/notification_script.js
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
