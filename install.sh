@@ -6,7 +6,7 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-NODE_BIN="$(command -v node || true)"
+NODE_BIN="$(command -v node | head -n 1 | tr -d '\r\n' || true)"
 if [[ -z "${NODE_BIN}" ]]; then
     echo "Node.js is not installed. Install it first: sudo apt update && sudo apt install -y nodejs"
     exit 1
@@ -53,10 +53,16 @@ else
     echo "[*] Existing ${INSTALL_DIR}/.env preserved."
 fi
 
-sed -e "s|__USER__|${TARGET_USER}|g" -e "s|__NODE__|${NODE_BIN}\vert{}g" kali-notifier.service > "${SERVICE_FILE}"
+SERVICE_CONTENT="$(<kali-notifier.service)"
+SERVICE_CONTENT="${SERVICE_CONTENT//__USER__/${TARGET_USER}}"
+SERVICE_CONTENT="${SERVICE_CONTENT//__NODE__/${NODE_BIN}}"
+printf '%s\n' "${SERVICE_CONTENT}" > "${SERVICE_FILE}"
 
 if [[ -d "${NM_DISPATCHER_DIR}" ]]; then
-    sed -e "s|__USER__|${TARGET_USER}|g" -e "s|__NODE__|${NODE_BIN}\vert{}g" 99-kali-notifier > "${NM_DISPATCHER_DIR}/99-kali-notifier"
+    NM_CONTENT="$(<99-kali-notifier)"
+    NM_CONTENT="${NM_CONTENT//__USER__/${TARGET_USER}}"
+    NM_CONTENT="${NM_CONTENT//__NODE__/${NODE_BIN}}"
+    printf '%s\n' "${NM_CONTENT}" > "${NM_DISPATCHER_DIR}/99-kali-notifier"
     chown root:root "${NM_DISPATCHER_DIR}/99-kali-notifier"
     chmod 755 "${NM_DISPATCHER_DIR}/99-kali-notifier"
     echo "[*] Installed NetworkManager wake/Wi-Fi hook at ${NM_DISPATCHER_DIR}/99-kali-notifier"
