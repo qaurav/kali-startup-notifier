@@ -1,5 +1,5 @@
 [Unit]
-Description=Kali Linux Startup Discord Notifier
+Description=Kali Linux Startup & Network Discord Notifier
 Wants=network-online.target
 After=network.target network-online.target
 
@@ -8,7 +8,7 @@ Type=oneshot
 User=__USER__
 WorkingDirectory=/opt/kali-notifier
 EnvironmentFile=-/opt/kali-notifier/.env
-ExecStart=__NODE__ /opt/kali-notifier/notification_script.js
+ExecStart=__NODE__ /opt/kali-notifier/notification_script.js "Cold Boot"
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal

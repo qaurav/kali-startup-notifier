@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+IFACE="$1"
+ACTION="$2"
+
+if [[ "$ACTION" == "up" && "$IFACE" != "lo" ]]; then
+    runuser -u __USER__ -- __NODE__ /opt/kali-notifier/notification_script.js "Network Connected (${IFACE})" >/dev/null 2>&1 &
+fi

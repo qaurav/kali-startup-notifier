@@ -1,95 +1,97 @@
 <div align="center">
 
-# 🚨 Kali Linux Startup Discord Notifier
+# 🚨 Kali Linux Startup & Network Notifier (v2.0)
 
-**A lightweight, zero-dependency Node.js daemon that sends rich system & network telemetry alerts to Discord the moment your Linux machine boots.**
+**A lightweight, zero-dependency Node.js daemon that sends rich system, battery, Wi-Fi, and geolocation alerts to Discord (and optional Telegram) on boot, wake-from-sleep, or network change.**
 
 [![Test Startup Notifier](https://github.com/qaurav/kali-startup-notifier/actions/workflows/test-notifier.yml/badge.svg)](https://github.com/qaurav/kali-startup-notifier/actions/workflows/test-notifier.yml)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 ![Platform](https://img.shields.io/badge/Platform-Kali%20%7C%20Debian%20%7C%20Ubuntu-557C94?style=flat-square&logo=kalilinux&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-16%2B-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![Dependencies](https://img.shields.io/badge/Dependencies-Zero-blue?style=flat-square)
-![Init System](https://img.shields.io/badge/Init-systemd-FCC624?style=flat-square&logo=linux&logoColor=black)
 
 </div>
 
 ---
 
-## 📱 Alert Preview
+## ✨ What's New in v2.0
 
-Whenever your device powers on and connects to the internet, you receive an instant notification in your Discord channel:
-
-> **Kali Boot Notifier** `APP`
->
-> 🔴 **ALERT:** System (`kali`) booted up from **Kathmandu, Nepal**!
->
-> | Field | Value |
-> | :--- | :--- |
-> | 🖥️ **Hostname** | `kali` (`linux` / `x64`) |
-> | 🌐 **Public IP** | `203.0.113.42` |
-> | 🏢 **ISP / Org** | `WorldLink Communications` |
-> | 📍 **Location** | `Kathmandu, Bagmati Province, Nepal` |
-> | 🔌 **Local IP(s)** | `eth0: 192.168.1.105` |
+- **Wake & Wi-Fi Change Triggers:** Automatically fires on cold boot (`systemd`) **and** whenever your laptop wakes from suspend or connects to a new Wi-Fi hotspot (`NetworkManager` dispatcher).
+- **Offline Store-and-Forward Queue:** If your laptop boots without internet access, the event timestamp and battery state are queued locally and flushed automatically the moment connectivity returns.
+- **Multi-Provider IP Geolocation Fallback:** Chains `ipwho.is` → `ipinfo.io` → `ifconfig.co` so a single API outage never breaks location reporting.
+- **Richer Laptop Telemetry:** Captures connected **Wi-Fi SSID & BSSID**, **Battery percentage & charging status**, uptime, and local interfaces with zero `npm` packages.
+- **Optional Telegram Backup Channel:** Supports simultaneous delivery to Telegram alongside Discord.
 
 ---
 
-## ⚙️ How It Works
+## 📱 Alert Preview
+
+> **Kali System Notifier** `APP`
+>
+> 🔴 **ALERT:** System (`kali`) online from **Kathmandu, Bagmati Province, Nepal**!
+>
+> | Field | Value |
+> | :--- | :--- |
+> | 🖥️ **Hostname & OS** | `kali` (`linux` / `x64`) |
+> | ⚡ **Trigger** | `Cold Boot` |
+> | ⏱️ **Uptime** | `0m` |
+> | 🌐 **Public IP** | `203.0.113.42` |
+> | 🏢 **ISP / Org** | `WorldLink Communications` |
+> | 📍 **Location** | `Kathmandu, Bagmati Province, Nepal` *(via ipwho.is)* |
+> | 📶 **Wi-Fi / Network** | `Home-WiFi (AA:BB:CC:DD:EE:FF)` |
+> | 🔋 **Battery / Power** | `87% (Discharging)` |
+> | 🔌 **Local IP(s)** | `wlan0: 192.168.1.105` |
+
+---
+
+## ⚙️ Architecture
 
 ```mermaid
 flowchart LR
-    A[⚡ System Boot] --> B[🛡️ systemd<br/>network-online.target]
-    B --> C[📜 notification_script.js]
-    C --> D[(🔐 /opt/kali-notifier/.env)]
-    C --> E[🌍 ipwho.is API]
-    D & E --> F[💬 Discord Webhook Embed]
+    A[⚡ Cold Boot<br/>systemd] --> C[📜 notification_script.js]
+    B[📶 Wake / New Wi-Fi<br/>NetworkManager] --> C
+    C --> D{🌐 Online?}
+    D -- No --> E[(📦 offline_queue.json)]
+    D -- Yes --> F[🌍 Multi-API Geo<br/>ipwho.is → ipinfo → ifconfig]
+    E -. Flushed when online .-> F
+    F --> G[💬 Discord Embed & Telegram]
 ```
-
-1. **`systemd` waits for connectivity** (`network-online.target`) so the alert doesn't fail before Wi-Fi or Ethernet connects.
-2. **Zero external `npm` packages** — uses only built-in Node.js modules (`os`, `fs`, `https`) to read `.env`, gather interface IPs, and resolve geolocation.
-3. **One-shot execution** (`Type=oneshot`) sends the Discord payload and exits cleanly without consuming background RAM.
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Prerequisites
-Ensure **Node.js** is installed and create a **Discord Webhook**:
+### 1. Install Prerequisites
 ```bash
 sudo apt update && sudo apt install -y nodejs
 ```
 > [!TIP]
-> **How to get a Discord Webhook URL:**
-> Open Discord → **Server Settings** → **Integrations** → **Webhooks** → **New Webhook** → Select your target channel → **Copy Webhook URL**.
+> **Get a Discord Webhook URL:**
+> Open Discord → **Server Settings** → **Integrations** → **Webhooks** → **New Webhook** → Select channel → **Copy Webhook URL**.
 
-### 2. Clone & Install
+### 2. Clone & Run Installer
 ```bash
 git clone [https://github.com/qaurav/kali-startup-notifier.git](https://github.com/qaurav/kali-startup-notifier.git)
 cd kali-startup-notifier
 sudo ./install.sh
 ```
-Paste your **Discord Webhook URL** when prompted and press **Enter**.
+Paste your **Discord Webhook URL** when prompted (and optionally a Telegram Bot Token/Chat ID).
 
-> [!IMPORTANT]
-> **What `install.sh` configures automatically:**
-> - Auto-detects your `node` binary path and active user
-> - Installs the script into `/opt/kali-notifier/notification_script.js`
-> - Stores your webhook in `/opt/kali-notifier/.env` locked with `chmod 600`
-> - Registers and enables `/etc/systemd/system/kali-notifier.service`
-
-### 3. Send a Test Alert (No Reboot Needed)
+### 3. Test Immediately
 ```bash
 sudo systemctl start kali-notifier.service
 ```
 
 ---
 
-## 🛠️ Service Management Cheat Sheet
+## 🛠️ Management & Troubleshooting
 
 | Action | Command |
 | :--- | :--- |
-| **Trigger alert manually** | `sudo systemctl start kali-notifier.service` |
-| **View live execution logs** | `journalctl -u kali-notifier.service -n 20 --no-pager` |
-| **Check if enabled on boot** | `systemctl is-enabled kali-notifier.service` |
-| **Change Discord Webhook** | `sudo nano /opt/kali-notifier/.env` |
+| **Trigger manual test alert** | `sudo systemctl start kali-notifier.service` |
+| **Bypass 10s cooldown for rapid testing** | `sudo -u $USER node /opt/kali-notifier/notification_script.js "Manual Test" --force` |
+| **View service logs** | `journalctl -u kali-notifier.service -n 25 --no-pager` |
+| **Edit webhook / Telegram keys** | `sudo nano /opt/kali-notifier/.env` |
 | **Disable boot alerts** | `sudo systemctl disable kali-notifier.service` |
 
 <details>
@@ -98,6 +100,7 @@ sudo systemctl start kali-notifier.service
 ```bash
 sudo systemctl disable --now kali-notifier.service
 sudo rm -f /etc/systemd/system/kali-notifier.service
+sudo rm -f /etc/NetworkManager/dispatcher.d/99-kali-notifier
 sudo rm -rf /opt/kali-notifier
 sudo systemctl daemon-reload
 ```
@@ -105,21 +108,8 @@ sudo systemctl daemon-reload
 
 ---
 
-## 📂 Repository Layout
+## 🔒 Security & License
 
-```text
-kali-startup-notifier/
-├── .github/workflows/
-│   └── test-notifier.yml      # Automated CI test on Ubuntu systemd runner
-├── .env.example               # Template for Discord Webhook configuration
-├── .gitignore                 # Prevents accidental commits of local .env secrets
-├── install.sh                 # Interactive cross-distro installer script
-├── kali-notifier.service      # systemd unit template
-├── notification_script.js     # Zero-dependency telemetry & Discord sender
-└── README.md
-```
-
-## 🔒 Security Design
-
-- **No hardcoded credentials:** Secrets are never stored in source code or committed to Git.
-- **Restricted file permissions:** `/opt/kali-notifier/.env` is owned by your user with `600` (`-rw-------`) permissions so other local accounts cannot read your webhook token.
+- Secrets live exclusively in `/opt/kali-notifier/.env` (`chmod 600`, owned by your user) and are excluded via `.gitignore`.
+- Both `systemd` and `NetworkManager` execute the script as your unprivileged user rather than `root`.
+- Released under the [MIT License](LICENSE).
